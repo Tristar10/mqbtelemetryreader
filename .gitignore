@@ -1,0 +1,6 @@
+.pio/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+__pycache__/
+*.vbo
