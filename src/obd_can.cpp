@@ -289,5 +289,12 @@ bool isotpRequest(const uint8_t* req, uint16_t reqLen, isotp_result_t& out, uint
     break;
   }
   out.elapsedMs = millis() - started;
+
+  // An unacknowledged frame is retransmitted forever by the controller, which
+  // would keep the car's diagnostic bus busy. After any failure, restart the
+  // driver to drop pending/retrying frames.
+  if (!out.ok) {
+    obdCanRestart();
+  }
   return out.ok;
 }

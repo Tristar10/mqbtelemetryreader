@@ -5,7 +5,7 @@ port and (eventually) feeds it to RaceChrono alongside OpenHaldex-S3.
 
 Target car: Audi 8S TT, Simos18.10. Hardware: LilyGo T-2CAN (ESP32-S3).
 
-## Status: v0.0.2 - test firmware
+## Status: v0.0.3 - test firmware
 
 This version only checks what the ECU answers and how fast:
 
