@@ -5,7 +5,7 @@ port and (eventually) feeds it to RaceChrono alongside OpenHaldex-S3.
 
 Target car: Audi 8S TT, Simos18.10. Hardware: LilyGo T-2CAN (ESP32-S3).
 
-## Status: v0.0.1 - test firmware
+## Status: v0.0.2 - test firmware
 
 This version only checks what the ECU answers and how fast:
 
@@ -13,6 +13,9 @@ This version only checks what the ECU answers and how fast:
 - Tries each value alone, then several values in one request, then measures
   the live read rate.
 - Serves a small test page on its own Wi-Fi access point.
+
+- Bench self-test: jumper CANHA-CANHB and CANLA-CANLB (car disconnected) and
+  press **Bench self-test** to check the board sends and receives on both channels.
 
 Not yet: forwarding to OpenHaldex / RaceChrono, sleep when the car is off.
 
@@ -55,7 +58,7 @@ Boost = MAP - ambient. Addresses come from the SimosTools mode-22 PID list.
 2. Join Wi-Fi `MQBTelemetry` (password `mqbtelemetry`).
 3. Open `http://192.168.4.1/`, press **Run probe**, then **Start live**.
 
-API: `GET /api/status`, `GET /api/read`, `POST /api/probe`.
+API: `GET /api/status`, `GET /api/read`, `POST /api/probe`, `POST /api/selftest`.
 
 ## Versioning
 

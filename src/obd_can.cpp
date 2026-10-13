@@ -26,6 +26,15 @@ bool obdCanInit() {
   return true;
 }
 
+bool obdCanRestart() {
+  if (g_ready) {
+    twai_stop();
+    twai_driver_uninstall();
+    g_ready = false;
+  }
+  return obdCanInit();
+}
+
 static const char* stateName(twai_state_t s) {
   switch (s) {
   case TWAI_STATE_STOPPED:

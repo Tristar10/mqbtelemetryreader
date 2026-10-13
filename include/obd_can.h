@@ -4,6 +4,8 @@
 #include <ArduinoJson.h>
 
 bool obdCanInit();
+// Reinstalls the driver: clears bus-off state and resets all error counters.
+bool obdCanRestart();
 void obdCanWriteStatusJson(JsonObject out);
 
 #define ISOTP_MAX_PAYLOAD 512

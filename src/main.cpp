@@ -5,6 +5,7 @@
 
 #include "config.h"
 #include "obd_can.h"
+#include "selftest.h"
 #include "simos.h"
 #include "version.h"
 
@@ -22,7 +23,7 @@ pre{white-space:pre-wrap;word-break:break-all;background:#1c1c1c;padding:8px;bor
 .muted{color:#999}
 </style></head><body>
 <h2>MQB Telemetry Reader <span class="muted" id="ver"></span></h2>
-<button id="live">Start live</button><button id="probe">Run probe</button>
+<button id="live">Start live</button><button id="probe">Run probe</button><button id="selftest">Bench self-test</button>
 <div id="status" class="muted"></div>
 <table id="values"></table>
 <pre id="out"></pre>
@@ -46,6 +47,12 @@ $('probe').onclick=async()=>{
   if(timer){clearTimeout(timer);timer=null;$('live').textContent='Start live';}
   $('out').textContent='Running probe (up to ~10 s)...';
   const j=await (await fetch('/api/probe',{method:'POST'})).json();
+  $('out').textContent=JSON.stringify(j,null,2);
+};
+$('selftest').onclick=async()=>{
+  if(timer){clearTimeout(timer);timer=null;$('live').textContent='Start live';}
+  $('out').textContent='Running self-test (needs CANHA-CANHB and CANLA-CANLB jumpers)...';
+  const j=await (await fetch('/api/selftest',{method:'POST'})).json();
   $('out').textContent=JSON.stringify(j,null,2);
 };
 </script></body></html>)HTML";
@@ -74,6 +81,7 @@ static void handleProbe() {
   JsonDocument doc;
   JsonObject root = doc.to<JsonObject>();
   root["version"] = MTR_VERSION;
+  obdCanRestart();  // start from clean error counters
   obdCanWriteStatusJson(root["can"].to<JsonObject>());
   simosProbe(root);
   obdCanWriteStatusJson(root["canAfter"].to<JsonObject>());
@@ -82,6 +90,16 @@ static void handleProbe() {
   serializeJson(doc, body);
   Serial.println(body);
   server.send(200, "application/json", body);
+}
+
+static void handleSelftest() {
+  JsonDocument doc;
+  JsonObject root = doc.to<JsonObject>();
+  root["version"] = MTR_VERSION;
+  obdCanRestart();
+  selftestRun(root);
+  obdCanWriteStatusJson(root["can"].to<JsonObject>());
+  sendJson(doc);
 }
 
 void setup() {
@@ -95,6 +113,8 @@ void setup() {
     Serial.println("OBD CAN init FAILED");
   }
 
+  selftestParkChannelB();
+
   WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASSWORD);
   Serial.printf("AP %s ready at %s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
@@ -103,6 +123,7 @@ void setup() {
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/read", HTTP_GET, handleRead);
   server.on("/api/probe", HTTP_POST, handleProbe);
+  server.on("/api/selftest", HTTP_POST, handleSelftest);
   server.begin();
 }
 
