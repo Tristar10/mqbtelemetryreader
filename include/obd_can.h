@@ -8,6 +8,10 @@ bool obdCanInit();
 bool obdCanRestart();
 void obdCanWriteStatusJson(JsonObject out);
 
+// Listens without transmitting or ACKing (listen-only mode) for durationMs and
+// reports every CAN ID seen, then returns to normal mode.
+void obdCanSniff(uint32_t durationMs, JsonObject out);
+
 #define ISOTP_MAX_PAYLOAD 512
 
 struct isotp_result_t {

@@ -7,9 +7,8 @@
 
 static bool g_ready = false;
 
-bool obdCanInit() {
-  twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)OBD_CAN_TX_PIN, (gpio_num_t)OBD_CAN_RX_PIN,
-                                                        TWAI_MODE_NORMAL);
+static bool installDriver(twai_mode_t mode) {
+  twai_general_config_t g = TWAI_GENERAL_CONFIG_DEFAULT((gpio_num_t)OBD_CAN_TX_PIN, (gpio_num_t)OBD_CAN_RX_PIN, mode);
   g.rx_queue_len = 64;
   g.tx_queue_len = 16;
   twai_timing_config_t t = TWAI_TIMING_CONFIG_500KBITS();
@@ -22,17 +21,96 @@ bool obdCanInit() {
     twai_driver_uninstall();
     return false;
   }
-  g_ready = true;
   return true;
+}
+
+static void uninstallDriver() {
+  twai_stop();
+  twai_driver_uninstall();
+}
+
+bool obdCanInit() {
+  g_ready = installDriver(TWAI_MODE_NORMAL);
+  return g_ready;
 }
 
 bool obdCanRestart() {
   if (g_ready) {
-    twai_stop();
-    twai_driver_uninstall();
+    uninstallDriver();
     g_ready = false;
   }
   return obdCanInit();
+}
+
+void obdCanSniff(uint32_t durationMs, JsonObject out) {
+  struct seen_t {
+    uint32_t id;
+    bool extd;
+    uint8_t dlc;
+    uint8_t data[8];
+    uint32_t count;
+  };
+  static seen_t seen[48];
+  size_t seen_count = 0;
+  uint32_t total = 0;
+  uint32_t dropped_ids = 0;
+
+  if (g_ready) {
+    uninstallDriver();
+    g_ready = false;
+  }
+  const bool listening = installDriver(TWAI_MODE_LISTEN_ONLY);
+  out["listenOnly"] = listening;
+
+  const uint32_t started = millis();
+  while (listening && millis() - started < durationMs) {
+    twai_message_t m;
+    if (twai_receive(&m, pdMS_TO_TICKS(20)) != ESP_OK) {
+      continue;
+    }
+    total++;
+    size_t i = 0;
+    while (i < seen_count && !(seen[i].id == m.identifier && seen[i].extd == (bool)m.extd)) {
+      i++;
+    }
+    if (i == seen_count) {
+      if (seen_count == sizeof(seen) / sizeof(seen[0])) {
+        dropped_ids++;
+        continue;
+      }
+      seen[i] = {m.identifier, (bool)m.extd, 0, {0}, 0};
+      seen_count++;
+    }
+    seen[i].dlc = m.data_length_code;
+    memcpy(seen[i].data, m.data, 8);
+    seen[i].count++;
+  }
+
+  twai_status_info_t st = {};
+  if (listening) {
+    twai_get_status_info(&st);
+    out["busErrors"] = st.bus_error_count;
+    out["rxErrors"] = st.rx_error_counter;
+    uninstallDriver();
+  }
+  obdCanInit();
+
+  out["seconds"] = durationMs / 1000.0f;
+  out["frames"] = total;
+  out["idsNotListed"] = dropped_ids;
+  JsonArray ids = out["ids"].to<JsonArray>();
+  for (size_t i = 0; i < seen_count; i++) {
+    char idbuf[12];
+    snprintf(idbuf, sizeof(idbuf), seen[i].extd ? "0x%08lX" : "0x%03lX", (unsigned long)seen[i].id);
+    char databuf[3 * 8 + 1] = {0};
+    for (uint8_t b = 0; b < seen[i].dlc && b < 8; b++) {
+      snprintf(&databuf[b * 3], 4, b ? " %02X" : "%02X", seen[i].data[b]);
+    }
+    JsonObject row = ids.add<JsonObject>();
+    row["id"] = idbuf;
+    row["count"] = seen[i].count;
+    row["last"] = databuf;
+  }
 }
 
 static const char* stateName(twai_state_t s) {

@@ -23,7 +23,7 @@ pre{white-space:pre-wrap;word-break:break-all;background:#1c1c1c;padding:8px;bor
 .muted{color:#999}
 </style></head><body>
 <h2>MQB Telemetry Reader <span class="muted" id="ver"></span></h2>
-<button id="live">Start live</button><button id="probe">Run probe</button><button id="selftest">Bench self-test</button>
+<button id="live">Start live</button><button id="probe">Run probe</button><button id="selftest">Bench self-test</button><button id="sniff">Listen 15 s</button>
 <div id="status" class="muted"></div>
 <table id="values"></table>
 <pre id="out"></pre>
@@ -53,6 +53,12 @@ $('selftest').onclick=async()=>{
   if(timer){clearTimeout(timer);timer=null;$('live').textContent='Start live';}
   $('out').textContent='Running self-test (needs CANHA-CANHB and CANLA-CANLB jumpers)...';
   const j=await (await fetch('/api/selftest',{method:'POST'})).json();
+  $('out').textContent=JSON.stringify(j,null,2);
+};
+$('sniff').onclick=async()=>{
+  if(timer){clearTimeout(timer);timer=null;$('live').textContent='Start live';}
+  $('out').textContent='Listening silently for 15 s...';
+  const j=await (await fetch('/api/sniff?s=15',{method:'POST'})).json();
   $('out').textContent=JSON.stringify(j,null,2);
 };
 </script></body></html>)HTML";
@@ -102,6 +108,18 @@ static void handleSelftest() {
   sendJson(doc);
 }
 
+static void handleSniff() {
+  uint32_t seconds = 15;
+  if (server.hasArg("s")) {
+    seconds = constrain(server.arg("s").toInt(), 1, 60);
+  }
+  JsonDocument doc;
+  JsonObject root = doc.to<JsonObject>();
+  root["version"] = MTR_VERSION;
+  obdCanSniff(seconds * 1000, root);
+  sendJson(doc);
+}
+
 void setup() {
   Serial.begin(115200);
   delay(300);
@@ -124,6 +142,7 @@ void setup() {
   server.on("/api/read", HTTP_GET, handleRead);
   server.on("/api/probe", HTTP_POST, handleProbe);
   server.on("/api/selftest", HTTP_POST, handleSelftest);
+  server.on("/api/sniff", HTTP_POST, handleSniff);
   server.begin();
 }
 
